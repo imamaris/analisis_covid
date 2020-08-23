@@ -1,0 +1,334 @@
+---
+title: "covid19"
+author: "Imam"
+date: "August 2, 2020"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Mengakses API covid.go.id
+
+```{r}
+library(httr)
+resp <- GET ("https://data.covid19.go.id/public/api/update.json")
+```
+## Mengevaluasi Respon
+Saat Anda menjalankan fungsi GET(), pada dasarnya hal yang terjadi adalah Anda membuat sebuah permintaan kepada server penyedia API. Permintaan Anda tersebut selanjutnya diproses dan dijawab oleh server sebagai sebuah respon. Objek resp yang telah Anda buat memiliki informasi respon oleh server.
+
+Ada tiga informasi utama dalam sebuah respon API, yaitu status, headers, dan body. Status memiliki informasi apakah permintaan Anda berhasil atau tidak dan dinyatakan dalam status code, headers umumnya mengandung informasi metadata, sedangkan body berisikan konten atas permintaan yang telah dibuat.
+
+```{r}
+status_code (resp)
+```
+
+## Status Code - 2
+Selain menggunakan fungsi status_code(), Anda juga dapat mengetahui status permintaan dengan cara mengakses elemen dari resp. Status code tersebut tersedia dengan nama status_code dan dapat diakses dengan menggunakan operator $ pada obyek resp. Cobalah kembali akses status code dengan cara tersebut dan bandingkan hasilnya dengan cara pertama!
+
+```{r}
+resp$status_code
+identical(resp$status_code, status_code(resp))
+```
+
+## Headers API
+Selamat status permintaan Anda melalui API sukses dipenuhi! Sekarang cobalah Anda jalankan fungsi headers() pada resp untuk mengetahui metadata apa saja yang tersimpan. Apakah isi dari elemen content-type? Kapan terakhir kali informasi diperbaharui?
+
+```{r}
+headers(resp)
+```
+
+## Mengekstrak isi Respon
+Respon API dengan status code 200 menyatakan bahwa permintaan Anda berhasil dipenuhi dan konten yang diminta tersedia untuk diekstrak. Selain itu Anda juga telah mengetahui lewat fungsi headers() bahwa konten yang diminta tersedia dalam bentuk application/json, yaitu berkas JSON.
+
+Selanjutnya Anda dapat mengekstrak konten tersebut dengan menggunakan fungsi content(). Fungsi content() tersebut secara cerdas akan menyesuaikan output sesuai dengan jenis berkas yang tersedia, dalam hal ini adalah berkas JSON. Jalankan fungsi tersebut pada obyek resp dan tambahkan argumen as = "parsed" dan simplifyVector = TRUE. Simpanlah hasilnya sebagai cov_id_raw!
+
+Dengan menggunakan fungsi length() dan names() cobalah amati ada berapa komponen serta apa saja nama komponen dalam obyek cov_id_raw tersebut! Kemudian ekstraklah komponen ke-2 dan simpan dengan nama cov_id_update.
+
+```{r}
+cov_id_raw <- content(resp, as = "parsed", simplifyVector = TRUE) 
+length(cov_id_raw)
+names(cov_id_raw)
+cov_id_update <- cov_id_raw$update
+```
+
+## Analisa Data
+Sekarang Anda diminta untuk fokus pada obyek cov_id_update untuk menjawab pertanyaan-pertanyaan berikut:
+
+Kapan tanggal pembaharuan data penambahan kasus?
+Berapa jumlah penambahan kasus sembuh?
+Berapa jumlah penambahan kasus meninggal?
+Berapa jumlah total kasus positif hingga saat ini?
+Berapa jumlah total kasus meninggal hingga saat ini?
+
+```{r}
+lapply(cov_id_update, names)
+cov_id_update$penambahan$tanggal
+cov_id_update$penambahan$jumlah_sembuh
+cov_id_update$penambahan$jumlah_meninggal
+cov_id_update$total$jumlah_positif
+cov_id_update$harian
+```
+
+## Apa Kabar Jawa Barat?
+Anda telah berhasil menjawab pertanyaan mengenai kondisi COVID-19 di Indonesia dengan menggunakan data yang langsung diambil menggunakan API. Namun bagaimana jika Anda ingin berfokus dengan data COVID-19 di provinsi tempat menetap saat ini?
+
+covid19.go.id menyediakan data kasus COVID-19 tingkat provinsi di alamat API yang berbeda. Sebagai contoh data mengenai COVID-19 Jawa Barat, tempat tinggal saya sekarang, tersedia di https://data.covid19.go.id/public/api/prov_detail_JAWA_BARAT.json
+
+```{r}
+resp_jabar <-GET("https://data.covid19.go.id/public/api/prov_detail_JAWA_BARAT.json")
+cov_jabar_raw <- content(resp_jabar, as = "parsed", simplifyVector = TRUE)
+
+names(cov_jabar_raw)
+cov_jabar_raw$kasus_total
+cov_jabar_raw$meninggal_persen
+cov_jabar_raw$sembuh_persen
+```
+
+## Memperoleh Informasi yang Lebih Lengkap
+Informasi umum mengenai COVID-19 di Jawa Barat telah Anda dapatkan. Namun informasi akan lebih lengkap jika Anda memiliki data perkembangan COVID-19 dari waktu ke waktu, apakah Anda setuju?
+
+Kabar baiknya adalah informasi tersebut juga disediakan oleh covid19.go.id melalui permintaan API yang telah Anda buat sebelumnya. Data historis perkembangan COVID-19 tersebut tersimpan dengan nama list_perkembangan. Silakan Anda ekstrak data tersebut dari cov_jabar_raw dan simpanlah hasilnya sebagai obyek bernama cov_jabar! Amati struktur cov_jabar menggunakan fungsi str() dan head().
+
+```{r}
+cov_jabar <- cov_jabar_raw$list_perkembangan
+str(cov_jabar)
+head(cov_jabar)
+```
+
+## Menjinakkan Data
+Setelah mengekstrak dan mengamati cov_jabar, Anda menemukan beberapa kejanggalan pada data tersebut. Diantaranya adalah kejanggalan data pada kolom tanggal dan format penulisan kolom yang tidak konsisten. Sekarang Anda akan mencoba melakukan beberapa tahapan untuk menjinakan data tersebut sehingga dapat diolah dan dianalisis dengan lebih mudah.
+
+Sebelum itu, silakan Anda aktifkan paket dplyr yang akan dipergunakan untuk melakukan pengolahan data.
+
+Ada beberapa tahapan yang akan Anda lakukan untuk menjinakan data cov_jabar, yaitu:
+
+Menghapus kolom “DIRAWAT_OR_ISOLASI” dan “AKUMULASI_DIRAWAT_OR_ISOLASI”
+Menghapus semua kolom yang berisi nilai kumulatif
+Mengganti nama kolom “KASUS” menjadi “kasus_baru”
+Merubah format penulisan kolom berikut menjadi huruf kecil
+kolom MENINGGAL
+kolom SEMBUH
+Memperbaiki data pada kolom tanggal
+
+```{r}
+library(dplyr)
+new_cov_jabar <-
+  cov_jabar %>% 
+  select(-contains("DIRAWAT_OR_ISOLASI")) %>% 
+  select(-starts_with("AKUMULASI")) %>% 
+  rename(
+    kasus_baru =  KASUS,
+    meninggal = MENINGGAL,
+    sembuh = SEMBUH
+    ) %>% 
+  mutate(
+    tanggal = as.POSIXct(tanggal / 1000, origin = "1970-01-01"),
+    tanggal = as.Date(tanggal)
+  )
+str(new_cov_jabar)  
+```
+
+#Menunjukkan Melalui Gambar
+Akhirnya Anda berhasil menjinakan data cov_jabar sehingga lebih mudah untuk diolah, selamat! Memiliki data yang rapi memang menyenangkan, apakah Anda setuju dengan hal tersebut?
+
+Setelah memiliki data yang jinak, sekarang saatnya Anda mengekspresikan data tersebut dalam bentuk lain yang harapannya lebih mudah dicerna: grafik. Anda akan memulai merancang visualisasi yang memiliki estetika dengan menggunakan paket ggplot2 dan paket hrbrthemes. Aktifkanlah kedua paket tersebut!
+
+Berikut merupakan templat kode untuk membuat visualisasi menggunakan ggplot2:
+
+```{r}
+#ggplot(data = ..., aes(x = ..., y = ...)) +
+#  geom_xxx()
+```
+Berdasarkan template tersebut, komponen utama untuk membuat visualisasi antara lain adalah tabel data, kolom data, serta bentuk geometri untuk mempresentasikan data. Sebagai contoh untuk membuat scatter-plot yang diperlukan adalah bentuk geometri titik (geom_col()), line-chart memerlukan geometri garis (geom_line()), sedangkan bar-chart memerlukan bentuk geometri batang atau kolom (geom_bar() atau geom_col()).
+
+```{r}
+library(ggplot2)
+library(hrbrthemes)
+ggplot(new_cov_jabar, aes(x = tanggal, y = kasus_baru)) +
+  geom_col()
+```
+
+```{r}
+library(ggplot2)
+library(hrbrthemes)
+ggplot(new_cov_jabar, aes(tanggal, kasus_baru)) +
+	geom_col(fill="salmon") +
+	labs(
+	  x = NULL,
+	  y = "Jumlah kasus",
+	  title = "Kasus Harian Positif COVID-19 di Jawa Barat",
+	  subtitle = "Terjadi pelonjakan kasus diawal bulan Juli akibat klaster Secapa AD Bandung",
+	  caption = "Sumber data: covid.19.go.id"
+	  )+
+theme_ipsum(
+  base_size = 13,
+  plot_title_size = 21,
+  grid = "Y",
+  ticks = TRUE
+  ) +
+theme(plot.title.position="plot")
+```
+
+```{r}
+ggplot(new_cov_jabar, aes(tanggal, sembuh)) +
+  geom_col(fill = "olivedrab2") +
+  labs(
+    x = NULL,
+    y = "Jumlah kasus",
+    title = "Kasus Harian Sembuh Dari COVID-19 Jawa Barat",
+    caption = "Sumber data: covid.19.go.id"
+  ) +
+  theme_ipsum(
+    base_size = 13, 
+    plot_title_size = 21,
+    grid = "Y",
+    ticks = TRUE
+  ) +
+  theme(plot.title.position = "plot")
+```
+
+
+```{r}
+library(ggplot2)
+library(hrbrthemes)
+ggplot(new_cov_jabar, aes(tanggal, meninggal)) +
+  geom_col(fill = "darkslategray4") +
+  labs(
+    x = NULL,
+    y = "Jumlah kasus",
+    title = "Grafik Meninggal Akibat COVID-19 Jawa Barat",
+    caption = "Sumber data: covid.19.go.id"
+  ) +
+  theme_ipsum(
+    base_size = 13, 
+    plot_title_size = 21,
+    grid = "Y",
+    ticks = TRUE
+  ) +
+  theme(plot.title.position = "plot")
+```
+
+```{r}
+library(dplyr)
+library(lubridate)
+
+cov_jabar_pekanan <- new_cov_jabar %>% 
+  count(
+    tahun = year(tanggal),
+    pekan_ke = week(tanggal),
+    wt = kasus_baru,
+    name = "jumlah"
+  )
+
+glimpse(cov_jabar_pekanan)
+```
+
+```{r}
+cov_jabar_pekanan <-
+  cov_jabar_pekanan %>% 
+  mutate(
+    jumlah_pekanlalu = dplyr::lag(jumlah, 1),
+    jumlah_pekanlalu = ifelse(is.na(jumlah_pekanlalu), 0, jumlah_pekanlalu),
+    lebih_baik = jumlah < jumlah_pekanlalu
+  )
+glimpse(cov_jabar_pekanan)
+```
+
+```{r}
+
+ggplot(cov_jabar_pekanan, aes(pekan_ke, jumlah, fill = lebih_baik)) +
+geom_col(show.legend = FALSE) +
+scale_x_continuous(breaks = 9:29, expand = c(0,0)) +
+scale_fill_manual(values = c("TRUE" = "seagreen3", "FALSE" = "salmon")) +
+labs(
+  x = NULL,
+  y = "Jumlah kasus",
+  title = "Kasus Pekanan Positif COVID-19 di Jawa Barat",
+  subtitle = "Kolom hijau menunjukan penambahan kasus baru lebih sedikit dibandingkan \nsatu pekan sebelumnya",
+  caption = "Sumber data: covid.19.go.id"
+) +
+theme_ipsum(
+  base_size = 13,
+  plot_title_size = 21,
+  grid = "Y",
+  ticks = TRUE
+) +
+theme(plot.title.position = "plot")
+```
+
+```{r}
+
+cov_jabar_akumulasi <- 
+  new_cov_jabar %>% 
+  transmute(
+    tanggal,
+    akumulasi_aktif = cumsum(kasus_baru) - cumsum(sembuh) - cumsum(meninggal),
+    akumulasi_sembuh = cumsum(sembuh),
+    akumulasi_meninggal = cumsum(meninggal)
+  )
+
+tail(cov_jabar_akumulasi)
+```
+
+```{r}
+ggplot(data = cov_jabar_akumulasi, aes(x = tanggal, y = akumulasi_aktif)) +
+  geom_line()
+```
+
+```{r}
+library(dplyr)
+library(tidyr)
+
+dim(cov_jabar_akumulasi)
+
+cov_jabar_akumulasi_pivot <- 
+  cov_jabar_akumulasi %>% 
+  gather(
+    key = "kategori",
+    value = "jumlah",
+    -tanggal
+  ) %>% 
+  mutate(
+    kategori = sub(pattern = "akumulasi_", replacement = "", kategori)
+  )
+
+dim(cov_jabar_akumulasi_pivot)
+
+glimpse(cov_jabar_akumulasi_pivot)
+```
+
+```{r}
+library(ggplot2)
+library(hrbrthemes)
+
+ggplot(cov_jabar_akumulasi_pivot, aes(tanggal, jumlah, colour = (kategori))) +
+geom_line(size = 0.9) +
+scale_y_continuous(sec.axis = dup_axis(name = NULL)) +
+scale_colour_manual(
+  values = c(
+  "aktif" = "salmon", 
+  "meninggal" = "darkslategray4",
+  "sembuh" = "olivedrab2"
+	),
+	labels = c("Aktif", "Meninggal", "Sembuh")
+) +
+labs(
+  x = NULL,
+  y = "Jumlah kasus akumulasi",
+  colour = NULL,
+  title = "Dinamika Kasus COVID-19 di Jawa Barat",
+  caption = "Sumber data: covid.19.go.id"
+) +
+theme_ipsum(
+  base_size = 13,
+  plot_title_size = 21,
+  grid = "Y",
+  ticks = TRUE
+) +
+theme(plot.title = element_text(hjust = 0.5),
+	  legend.position = "top"
+	 )
+```
+
